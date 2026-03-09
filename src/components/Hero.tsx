@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function Hero() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -36,7 +37,7 @@ export function Hero() {
 
   return (
     <section className="relative h-screen bg-black text-white flex items-center justify-center px-4 overflow-hidden">
-      <div className="container mx-auto max-w-6xl text-center w-full flex flex-col items-center justify-center">
+      <div className="container mx-auto max-w-[90%] text-center w-full flex flex-col items-center justify-center">
         {/* Welcome Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-800/50 border border-gray-700 mb-4">
           <Sparkles className="w-4 h-4 text-red-500" />
@@ -57,6 +58,14 @@ export function Hero() {
           Upload your fabric design and instantly see how it looks on T-shirts,
           furniture, bedsheets, and more.
         </p>
+
+        {/* Try Now Button */}
+        <Button
+          onClick={scrollToDemo}
+          className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-6 text-lg rounded-full mb-16"
+        >
+          Try Now
+        </Button>
 
         {/* Hero Carousel */}
         <div className="relative w-full max-w-2xl mx-auto rounded-2xl overflow-hidden shadow-2xl flex-shrink-0">

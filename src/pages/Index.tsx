@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, Layers } from "lucide-react";
+import { Download, Upload, Save } from "lucide-react";
 import { ControlPanel } from "@/components/ControlPanel";
 import { FabricSelector } from "@/components/FabricSelector";
 import { MockupSelector } from "@/components/MockupSelector";
@@ -11,6 +12,7 @@ import { Hero } from "@/components/Hero";
 import { Features } from "@/components/Features";
 import { FAQ } from "@/components/FAQ";
 import { Footer } from "@/components/Footer";
+import { LoginModal } from "@/components/LoginModal";
 import { mockups, fabrics } from "@/data/mockups";
 import type {
   FabricSettings,
@@ -20,8 +22,12 @@ import type {
 } from "@/types/fabric";
 import { defaultFabricSettings } from "@/types/fabric";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import axios from "axios";
 
 const Index = () => {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [selectedMockup, setSelectedMockup] = useState<ProductMockup | null>(
     mockups[0],
   );
@@ -33,27 +39,111 @@ const Index = () => {
   );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [designLoaded, setDesignLoaded] = useState(false);
+  const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
+
+  const loadDesign = useCallback(async (designId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please login to load design");
+        return;
+      }
+
+      const response = await axios.get(
+        `http://localhost:5000/api/designs/${designId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const design = response.data.design;
+      console.log("Loaded design:", design);
+
+      // Load mockup
+      const mockup = mockups.find((m) => m.id === design.settings.mockup);
+      if (mockup) {
+        setSelectedMockup(mockup);
+      }
+
+      // Load fabric - check if it's from the fabric list
+      const fabricId = design.settings.fabric;
+      if (fabricId) {
+        const fabric = fabrics.find((f) => f.id === fabricId);
+        if (fabric) {
+          setSelectedFabric(fabric);
+        }
+      }
+
+      // Load fabric settings - include all properties from defaultFabricSettings
+      setSettings({
+        scale: design.settings.scale ?? 1,
+        rotation: design.settings.rotation ?? 0,
+        offsetX: design.settings.offsetX ?? 0,
+        offsetY: design.settings.offsetY ?? 0,
+        brightness: design.settings.brightness ?? 1,
+        contrast: design.settings.contrast ?? 1,
+        backgroundColor: design.settings.backgroundColor ?? "#ffffff",
+        productColor: design.settings.productColor ?? null,
+        tileX: 1,
+        tileY: 1,
+        opacity: 1,
+        overlays: [],
+      });
+
+      // Trigger a re-render by toggling designLoaded
+      setDesignLoaded(true);
+      setTimeout(() => setDesignLoaded(false), 100);
+
+      // Set current design ID for updating
+      setCurrentDesignId(design._id);
+
+      toast.success("Design loaded!");
+    } catch (error) {
+      console.error("Failed to load design:", error);
+      toast.error("Failed to load design");
+    }
+  }, []);
+
+  // Load design from URL parameter
+  useEffect(() => {
+    const designId = searchParams.get("design");
+    if (designId) {
+      loadDesign(designId);
+    } else {
+      // Clear current design ID when no design in URL
+      setCurrentDesignId(null);
+    }
+  }, [searchParams, loadDesign]);
 
   const handleDownload = useCallback(() => {
     const sourceCanvas = canvasRef.current;
     if (!sourceCanvas || !selectedMockup) return;
 
-    // Create a new canvas at exactly 1080x1080
     const exportCanvas = document.createElement("canvas");
     exportCanvas.width = 1080;
     exportCanvas.height = 1080;
     const ctx = exportCanvas.getContext("2d");
     if (!ctx) return;
 
-    // Fill with background color
-    ctx.fillStyle = settings.backgroundColor || "white";
+    // Use white background if no color is set
+    ctx.fillStyle = settings.backgroundColor || "#ffffff";
     ctx.fillRect(0, 0, 1080, 1080);
 
-    // Draw the source canvas centered and scaled to fit
-    const scale = Math.min(
+    // Calculate scale to ensure product occupies 80% of the 1080px canvas
+    // 80% of 1080 = 864px minimum
+    const minSize = 1080 * 0.8;
+    const scaleToFit = Math.min(
       1080 / sourceCanvas.width,
       1080 / sourceCanvas.height,
     );
+    const scaleToCover =
+      minSize / Math.min(sourceCanvas.width, sourceCanvas.height);
+
+    // Use the larger scale to ensure 80% coverage, but cap at fit-to-canvas
+    const scale = Math.min(Math.max(scaleToCover, scaleToFit), 1);
+
     const scaledWidth = sourceCanvas.width * scale;
     const scaledHeight = sourceCanvas.height * scale;
     const offsetX = (1080 - scaledWidth) / 2;
@@ -61,10 +151,9 @@ const Index = () => {
 
     ctx.drawImage(sourceCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
 
-    // Download the image
     const link = document.createElement("a");
     link.download = `fabric-preview-${Date.now()}.png`;
-    link.href = exportCanvas.toDataURL("image/png");
+    link.href = exportCanvas.toDataURL("image/png", 1.0);
     link.click();
     toast.success("Image downloaded successfully!");
   }, [selectedMockup, settings.backgroundColor]);
@@ -88,7 +177,6 @@ const Index = () => {
       };
       reader.readAsDataURL(file);
 
-      // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -145,21 +233,95 @@ const Index = () => {
     toast.info("Design removed");
   }, []);
 
+  const handleSave = async () => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      // Capture thumbnail from canvas
+      const sourceCanvas = canvasRef.current;
+      let thumbnail = "";
+      if (sourceCanvas) {
+        const thumbCanvas = document.createElement("canvas");
+        thumbCanvas.width = 200;
+        thumbCanvas.height = 200;
+        const ctx = thumbCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = settings.backgroundColor || "white";
+          ctx.fillRect(0, 0, 200, 200);
+          const scale = Math.min(
+            200 / sourceCanvas.width,
+            200 / sourceCanvas.height,
+          );
+          const scaledWidth = sourceCanvas.width * scale;
+          const scaledHeight = sourceCanvas.height * scale;
+          const offsetX = (200 - scaledWidth) / 2;
+          const offsetY = (200 - scaledHeight) / 2;
+          ctx.drawImage(
+            sourceCanvas,
+            offsetX,
+            offsetY,
+            scaledWidth,
+            scaledHeight,
+          );
+          thumbnail = thumbCanvas.toDataURL("image/png");
+        }
+      }
+
+      const designData = {
+        name: selectedMockup?.name || "Custom Design",
+        settings: {
+          fabric: selectedFabric?.id,
+          mockup: selectedMockup?.id,
+          scale: settings.scale,
+          rotation: settings.rotation,
+          offsetX: settings.offsetX,
+          offsetY: settings.offsetY,
+          brightness: settings.brightness,
+          contrast: settings.contrast,
+          backgroundColor: settings.backgroundColor,
+          productColor: settings.productColor,
+        },
+        thumbnail,
+      };
+
+      // If we have a currentDesignId, update the existing design
+      // Otherwise, create a new design
+      if (currentDesignId) {
+        await axios.put(
+          `http://localhost:5000/api/designs/${currentDesignId}`,
+          designData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        toast.success("Design updated successfully!");
+      } else {
+        await axios.post("http://localhost:5000/api/designs", designData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast.success("Design saved successfully!");
+      }
+    } catch (error) {
+      toast.error("Failed to save design");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black">
-      {/* Navbar */}
       <Navbar />
-
-      {/* Hero Section */}
       <Hero />
-
-      {/* Features Section */}
       <Features />
 
-      {/* Fabric Previewer Section */}
       <div id="fabric-previewer" className="min-h-screen bg-black py-8">
-        {/* Title and Subtitle */}
-        <div className="container px-4 mb-8">
+        <div className="container mx-auto max-w-[90%] px-4 mb-8">
           <div className="text-center">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Fabric Visualizer
@@ -171,10 +333,8 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="container px-4">
+        <div className="container mx-auto max-w-[90%]">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 min-h-[calc(100vh-10rem)]">
-            {/* Canvas Area */}
             <div className="panel overflow-hidden relative min-h-[400px] lg:min-h-0">
               <FabricCanvas
                 mockup={selectedMockup}
@@ -184,9 +344,7 @@ const Index = () => {
               />
             </div>
 
-            {/* Right Sidebar */}
             <div className="flex flex-col gap-4 overflow-y-auto scrollbar-thin lg:max-h-full">
-              {/* Action Buttons */}
               <div className="panel p-4">
                 <input
                   ref={fileInputRef}
@@ -212,6 +370,19 @@ const Index = () => {
                     <Download className="w-4 h-4 mr-1.5" />
                     Download
                   </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={!selectedMockup || isSaving}
+                    variant="outline"
+                    className="border-gray-700 bg-white text-black hover:bg-white hover:scale-[1.02] transition-transform w-full"
+                  >
+                    <Save className="w-4 h-4 mr-1.5" />
+                    {isSaving
+                      ? "Saving..."
+                      : currentDesignId
+                        ? "Update"
+                        : "Save"}
+                  </Button>
                 </div>
               </div>
 
@@ -219,6 +390,7 @@ const Index = () => {
                 mockups={mockups}
                 selectedMockup={selectedMockup}
                 onSelect={setSelectedMockup}
+                disabled={!!currentDesignId}
               />
 
               <FabricSelector
@@ -244,10 +416,12 @@ const Index = () => {
         </div>
       </div>
 
-      {/* FAQ Section */}
       <FAQ />
-
-      {/* Footer */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSuccess={handleSave}
+      />
       <Footer />
     </div>
   );

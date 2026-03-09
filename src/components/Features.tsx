@@ -16,15 +16,15 @@ export function Features() {
     },
     {
       icon: Download,
-      title: "Download & Share",
+      title: "Save & Download",
       description:
-        "Export high-quality images of your fabric mockups for presentations or marketing.",
+        "Save your fabric designs securely to your account and download high-quality images anytime.",
     },
   ];
 
   return (
     <section id="features" className="py-20 bg-black text-white">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto max-w-[90%]">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
             Powerful <span className="text-orange-500">Features</span>
@@ -35,7 +35,7 @@ export function Features() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-[90%] mx-auto">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (

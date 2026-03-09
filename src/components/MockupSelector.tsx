@@ -13,12 +13,14 @@ interface MockupSelectorProps {
   mockups: ProductMockup[];
   selectedMockup: ProductMockup | null;
   onSelect: (mockup: ProductMockup) => void;
+  disabled?: boolean;
 }
 
 export const MockupSelector = ({
   mockups,
   selectedMockup,
   onSelect,
+  disabled = false,
 }: MockupSelectorProps) => {
   const handleValueChange = (value: string) => {
     const mockup = mockups.find((m) => m.id === value);
@@ -41,7 +43,11 @@ export const MockupSelector = ({
         Product Mockup
       </h3>
 
-      <Select value={selectedMockup?.id} onValueChange={handleValueChange}>
+      <Select
+        value={selectedMockup?.id}
+        onValueChange={handleValueChange}
+        disabled={disabled}
+      >
         <SelectTrigger className="w-full h-auto py-2">
           <SelectValue>
             {selectedMockup && (
