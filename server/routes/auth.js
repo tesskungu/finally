@@ -1,8 +1,9 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import User from "../models/User.js";
-import { sendPasswordResetEmail } from "../utils/email.js";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "../utils/email.js";
 
 const router = express.Router();
 const JWT_SECRET =
@@ -37,6 +38,11 @@ router.post("/signup", async (req, res) => {
     });
 
     await user.save();
+
+    // Send welcome email (non-blocking - don't wait for it)
+    sendWelcomeEmail(user.email, user.firstName).catch((err) =>
+      console.error("Welcome email error:", err),
+    );
 
     // Generate token
     const token = jwt.sign(
@@ -205,6 +211,14 @@ router.post("/forgot-password", async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error("MongoDB not connected, cannot process password reset");
+      return res.json({
+        message: "If the email exists, a reset link has been sent",
+      });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -220,15 +234,20 @@ router.post("/forgot-password", async (req, res) => {
     user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
     await user.save();
 
-    // Send reset email
-    await sendPasswordResetEmail(user.email, resetToken);
+    // Send reset email (non-blocking - don't wait for it)
+    sendPasswordResetEmail(user.email, resetToken).catch((err) => {
+      console.error("Password reset email error:", err.message);
+    });
 
     res.json({
       message: "If the email exists, a reset link has been sent",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
-    res.status(500).json({ message: "Server error processing request" });
+    // Return success anyway to not reveal internal errors
+    res.json({
+      message: "If the email exists, a reset link has been sent",
+    });
   }
 });
 

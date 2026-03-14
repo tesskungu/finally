@@ -81,21 +81,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await axios.post(`${API_URL}/login`, { email, password });
-    const { token: newToken, user: newUser } = response.data;
+    try {
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        password,
+      });
+      const { token: newToken, user: newUser } = response.data;
 
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    setUser(newUser);
+      localStorage.setItem("token", newToken);
+      setToken(newToken);
+      setUser(newUser);
+    } catch (error) {
+      if (
+        axios.isAxiosError(error) &&
+        (error.code === "ECONNREFUSED" ||
+          error.message.includes("Network Error"))
+      ) {
+        throw new Error(
+          "Unable to connect to server. Please ensure the backend is running on port 5000.",
+        );
+      }
+      throw error;
+    }
   };
 
   const signup = async (userData: SignupData) => {
-    const response = await axios.post(`${API_URL}/signup`, userData);
-    const { token: newToken, user: newUser } = response.data;
+    try {
+      const response = await axios.post(`${API_URL}/signup`, userData);
+      const { token: newToken, user: newUser } = response.data;
 
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    setUser(newUser);
+      localStorage.setItem("token", newToken);
+      setToken(newToken);
+      setUser(newUser);
+    } catch (error) {
+      if (
+        axios.isAxiosError(error) &&
+        (error.code === "ECONNREFUSED" ||
+          error.message.includes("Network Error"))
+      ) {
+        throw new Error(
+          "Unable to connect to server. Please ensure the backend is running on port 5000.",
+        );
+      }
+      throw error;
+    }
   };
 
   const logout = () => {
