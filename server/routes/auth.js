@@ -1,9 +1,9 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import mongoose from "mongoose";
 import User from "../models/User.js";
 import { sendPasswordResetEmail, sendWelcomeEmail } from "../utils/email.js";
+import { Op } from "sequelize";
 
 const router = express.Router();
 const JWT_SECRET =
@@ -14,9 +14,10 @@ router.post("/signup", async (req, res) => {
   try {
     const { username, email, password, firstName, lastName } = req.body;
 
-    // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
+      where: {
+        [Op.or]: [{ email }, { username }],
+      },
     });
 
     if (existingUser) {
@@ -28,8 +29,7 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    // Create new user
-    const user = new User({
+    const user = await User.create({
       username,
       email,
       password,
@@ -37,16 +37,12 @@ router.post("/signup", async (req, res) => {
       lastName: lastName || "",
     });
 
-    await user.save();
-
-    // Send welcome email (non-blocking - don't wait for it)
     sendWelcomeEmail(user.email, user.firstName).catch((err) =>
       console.error("Welcome email error:", err),
     );
 
-    // Generate token
     const token = jwt.sign(
-      { userId: user._id, username: user.username },
+      { userId: user.id, username: user.username },
       JWT_SECRET,
       { expiresIn: "7d" },
     );
@@ -67,14 +63,12 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    // Check password
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
@@ -85,9 +79,8 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Account is deactivated" });
     }
 
-    // Generate token
     const token = jwt.sign(
-      { userId: user._id, username: user.username },
+      { userId: user.id, username: user.username },
       JWT_SECRET,
       { expiresIn: "7d" },
     );
@@ -113,7 +106,7 @@ router.get("/me", async (req, res) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    const user = await User.findByPk(decoded.userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -138,7 +131,7 @@ router.put("/profile", async (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     const { firstName, lastName, avatar } = req.body;
 
-    const user = await User.findById(decoded.userId);
+    const user = await User.findByPk(decoded.userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -178,20 +171,18 @@ router.put("/change-password", async (req, res) => {
         .json({ message: "Old password and new password are required" });
     }
 
-    const user = await User.findById(decoded.userId);
+    const user = await User.findByPk(decoded.userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Verify old password
     const isMatch = await user.comparePassword(oldPassword);
 
     if (!isMatch) {
       return res.status(401).json({ message: "Current password is incorrect" });
     }
 
-    // Update password
     user.password = newPassword;
     await user.save();
 
@@ -211,30 +202,19 @@ router.post("/forgot-password", async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    // Check MongoDB connection
-    if (mongoose.connection.readyState !== 1) {
-      console.error("MongoDB not connected, cannot process password reset");
-      return res.json({
-        message: "If the email exists, a reset link has been sent",
-      });
-    }
-
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      // Don't reveal if email exists
       return res.json({
         message: "If the email exists, a reset link has been sent",
       });
     }
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
+    user.resetPasswordExpires = new Date(Date.now() + 3600000);
     await user.save();
 
-    // Send reset email (non-blocking - don't wait for it)
     sendPasswordResetEmail(user.email, resetToken).catch((err) => {
       console.error("Password reset email error:", err.message);
     });
@@ -244,7 +224,6 @@ router.post("/forgot-password", async (req, res) => {
     });
   } catch (error) {
     console.error("Forgot password error:", error);
-    // Return success anyway to not reveal internal errors
     res.json({
       message: "If the email exists, a reset link has been sent",
     });
@@ -263,8 +242,12 @@ router.post("/reset-password", async (req, res) => {
     }
 
     const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() },
+      where: {
+        resetPasswordToken: token,
+        resetPasswordExpires: {
+          [Op.gt]: new Date(),
+        },
+      },
     });
 
     if (!user) {
@@ -273,7 +256,6 @@ router.post("/reset-password", async (req, res) => {
         .json({ message: "Invalid or expired reset token" });
     }
 
-    // Update password
     user.password = newPassword;
     user.resetPasswordToken = null;
     user.resetPasswordExpires = null;

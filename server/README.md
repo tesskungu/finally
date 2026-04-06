@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - Node.js 18+
-- MongoDB (local or cloud instance) - Already configured with MongoDB Atlas
+- PostgreSQL database
+- Neon Postgres is supported out of the box through `DATABASE_URL`
 
 ## Setup
 
@@ -14,13 +15,21 @@ cd server
 npm install
 ```
 
-2. Start the server:
+2. Configure environment variables:
+
+```bash
+cp .env.example .env
+```
+
+Set `DATABASE_URL` to your Neon connection string.
+
+3. Start the server:
 
 ```bash
 npm start
 ```
 
-The server will run on http://localhost:5000 and connect to MongoDB Atlas.
+The server will run on http://localhost:5000 and connect to PostgreSQL.
 
 ## API Endpoints
 

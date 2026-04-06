@@ -10,7 +10,8 @@ import axios from "axios";
 const API_URL = "http://localhost:5000/api/auth";
 
 interface User {
-  _id: string;
+  id?: string;
+  _id?: string;
   username: string;
   email: string;
   firstName: string;

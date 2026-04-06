@@ -97,7 +97,7 @@ const Index = () => {
       setTimeout(() => setDesignLoaded(false), 100);
 
       // Set current design ID for updating
-      setCurrentDesignId(design._id);
+      setCurrentDesignId(design.id || design._id);
 
       toast.success("Design loaded!");
     } catch (error) {

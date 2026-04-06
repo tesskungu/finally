@@ -1,40 +1,43 @@
-import mongoose from "mongoose";
+import { DataTypes } from "sequelize";
+import sequelize from "../config/database.js";
+import User from "./User.js";
 
-const designSchema = new mongoose.Schema(
+const Design = sequelize.define(
+  "Design",
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: "users",
+        key: "id",
+      },
     },
     name: {
-      type: String,
-      required: true,
-      trim: true,
-      default: "Untitled Design",
+      type: DataTypes.STRING,
+      defaultValue: "Untitled Design",
     },
     settings: {
-      fabric: String,
-      mockup: String,
-      scale: Number,
-      rotation: Number,
-      offsetX: Number,
-      offsetY: Number,
-      brightness: Number,
-      contrast: Number,
-      backgroundColor: String,
-      productColor: String,
+      type: DataTypes.JSONB,
+      defaultValue: {},
     },
     thumbnail: {
-      type: String,
-      default: "",
+      type: DataTypes.TEXT,
+      defaultValue: "",
     },
   },
   {
     timestamps: true,
-  },
+    tableName: "designs",
+  }
 );
 
-const Design = mongoose.model("Design", designSchema);
+Design.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(Design, { foreignKey: "userId" });
 
 export default Design;

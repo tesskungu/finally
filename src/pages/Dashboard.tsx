@@ -45,7 +45,8 @@ import { toast } from "sonner";
 import { mockups } from "@/data/mockups";
 
 interface Design {
-  _id: string;
+  id?: string;
+  _id?: string;
   name: string;
   settings: {
     fabric: string;
@@ -59,6 +60,8 @@ interface Design {
 
 // Get all products from mockups
 const products = mockups.map((m) => ({ id: m.id, name: m.name }));
+
+const getDesignId = (design: Design) => design.id || design._id;
 
 const Dashboard = () => {
   const { user, logout, token } = useAuth();
@@ -104,7 +107,7 @@ const Dashboard = () => {
       await axios.delete(`http://localhost:5000/api/designs/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setDesigns(designs.filter((d) => d._id !== id));
+      setDesigns(designs.filter((d) => getDesignId(d) !== id));
       toast.success("Design deleted");
     } catch (error) {
       toast.error("Failed to delete design");
@@ -142,7 +145,7 @@ const Dashboard = () => {
   };
 
   const handleStartEdit = (design: Design) => {
-    setEditingId(design._id);
+    setEditingId(getDesignId(design));
     setEditName(design.name);
   };
 
@@ -159,7 +162,7 @@ const Dashboard = () => {
       );
       setDesigns(
         designs.map((d) =>
-          d._id === id ? { ...d, name: editName.trim() } : d,
+          getDesignId(d) === id ? { ...d, name: editName.trim() } : d,
         ),
       );
       setEditingId(null);
@@ -409,7 +412,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredDesigns.map((design) => (
                 <Card
-                  key={design._id}
+                  key={getDesignId(design)}
                   className="bg-gray-900 border-gray-800 overflow-hidden"
                 >
                   <div className="aspect-square bg-gray-800 flex items-center justify-center">
@@ -424,14 +427,15 @@ const Dashboard = () => {
                     )}
                   </div>
                   <CardHeader className="pb-2">
-                    {editingId === design._id ? (
+                    {editingId === getDesignId(design) ? (
                       <div className="flex items-center gap-2">
                         <Input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           className="h-8 bg-gray-800 text-white border-gray-700"
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveName(design._id);
+                            if (e.key === "Enter")
+                              handleSaveName(getDesignId(design));
                             if (e.key === "Escape") handleCancelEdit();
                           }}
                           autoFocus
@@ -439,7 +443,7 @@ const Dashboard = () => {
                         <Button
                           size="sm"
                           className="h-8 w-8 p-0 bg-transparent hover:bg-green-600"
-                          onClick={() => handleSaveName(design._id)}
+                          onClick={() => handleSaveName(getDesignId(design))}
                         >
                           <Check className="h-4 w-4 text-green-400" />
                         </Button>
@@ -477,7 +481,7 @@ const Dashboard = () => {
                         variant="outline"
                         size="sm"
                         className="flex-1 bg-orange-500 hover:bg-orange-600 text-white border-orange-500"
-                        onClick={() => navigateToEditDesign(design._id)}
+                        onClick={() => navigateToEditDesign(getDesignId(design))}
                       >
                         Edit
                       </Button>
@@ -498,7 +502,7 @@ const Dashboard = () => {
                       <Button
                         size="sm"
                         className="p-0 h-8 w-8 bg-transparent hover:bg-gray-800"
-                        onClick={() => handleDeleteDesign(design._id)}
+                        onClick={() => handleDeleteDesign(getDesignId(design))}
                       >
                         <Trash2 className="h-4 w-4 text-gray-300" />
                       </Button>
