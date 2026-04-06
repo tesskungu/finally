@@ -19,7 +19,7 @@ A full-stack web application for customizing fabric designs with various mockups
 
 - **Node.js** - Runtime
 - **Express** - Web framework
-- **MongoDB + Mongoose** - Database
+- **PostgreSQL (Neon) + Sequelize** - Database
 - **JWT** - Authentication
 - **Nodemailer** - Email sending
 
@@ -61,7 +61,7 @@ A full-stack web application for customizing fabric designs with various mockups
 
 | File                                 | Purpose                                                                                                                               |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| [`server/index.js`](server/index.js) | Express server entry point. Sets up middleware (CORS, JSON), connects to MongoDB, and mounts routes at `/api/auth` and `/api/designs` |
+| [`server/index.js`](server/index.js) | Express server entry point. Sets up middleware (CORS, JSON), connects to PostgreSQL, and mounts routes at `/api/auth` and `/api/designs` |
 
 #### Server Configuration
 
@@ -74,8 +74,8 @@ A full-stack web application for customizing fabric designs with various mockups
 
 | File                                                 | Purpose                                                                                                                                                                    |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`server/models/User.js`](server/models/User.js)     | Mongoose User schema with fields for username, email, password (hashed), names, avatar, and password reset tokens. Includes bcrypt password hashing and comparison methods |
-| [`server/models/Design.js`](server/models/Design.js) | Mongoose Design schema storing user's fabric design configurations (fabric type, mockup, scale, rotation, offset, colors, etc.)                                            |
+| [`server/models/User.js`](server/models/User.js)     | Sequelize User model with fields for username, email, password (hashed), names, avatar, and password reset tokens. Includes bcrypt password hashing and comparison methods |
+| [`server/models/Design.js`](server/models/Design.js) | Sequelize Design model storing each user's fabric design configuration in PostgreSQL JSONB                                                                                    |
 
 #### API Routes (`server/routes/`)
 
@@ -232,7 +232,7 @@ A full-stack web application for customizing fabric designs with various mockups
 ### Prerequisites
 
 - Node.js 18+
-- MongoDB (local or Atlas cloud)
+- PostgreSQL database
 
 ### Frontend Setup
 
@@ -261,14 +261,23 @@ npm run dev
 
 The backend runs on http://localhost:5000
 
+Set `server/.env` with either:
+
+```bash
+DATABASE_URL=postgresql://username:password@your-project-pooler.region.aws.neon.tech/dbname?sslmode=require&channel_binding=require
+```
+
+or the local fallback variables in `server/.env.example`.
+
 ---
 
 ## Data Models
 
-### User Schema (`server/models/User.js`)
+### User Model (`server/models/User.js`)
 
 ```javascript
 {
+  id: UUID,
   username: String,       // Unique, 3-30 chars
   email: String,         // Unique
   password: String,     // Hashed with bcrypt
@@ -281,11 +290,12 @@ The backend runs on http://localhost:5000
 }
 ```
 
-### Design Schema (`server/models/Design.js`)
+### Design Model (`server/models/Design.js`)
 
 ```javascript
 {
-  userId: ObjectId,      // Reference to User
+  id: UUID,
+  userId: UUID,          // Reference to User
   name: String,          // Design name
   settings: {
     fabric: String,     // Selected fabric texture
@@ -299,6 +309,10 @@ The backend runs on http://localhost:5000
     backgroundColor: String,
     productColor: String
   },
-  thumbnail: String     // Design preview image
+  thumbnail: String,    // Design preview image
+  createdAt: Date,
+  updatedAt: Date
 }
 ```
+#   m y f i n a l p r o j e c t  
+ 
